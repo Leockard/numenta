@@ -12,11 +12,12 @@ import os
 # Scalar encoder function
 #########################
 
-def encode(input):
+class Encoder():
     """
-    Encodes an int in a SDR and puts the encoded value in a list.  @param input: Data to
-    encode. This should be validated by the encoder.  @returns: list of same length W
+    Provides encode(), which turns an int into a SDR. Holds a bunch of hard-coded
+    constants.
     """
+
     # Record high and low temperature for NYC
     minval = -30
     maxval = 120
@@ -30,44 +31,52 @@ def encode(input):
     resolution = inputrange / N
     halfwidth = (W - 1)/2
     padding = halfwidth
+    
 
-    # Sanity checks
-    if input == None: return [None]
+    def encode(self, input):
+        """
+        Encodes an int in a SDR and puts the encoded value in a list.
+        @param input: Data to encode, an int.
+        @returns: list of bits of length W.
+        """
+    
+        # Sanity checks
+        if input == None: return [None]
+    
+        if input is not None and not isinstance(input, int):
+            raise TypeError("Expected a scalar input but got input of type %s" % type(input))
+    
+        if input < self.minval:
+            raise Exception('input (%s) less than minvalue (%s)' % (str(input), str(self.minval)))
+    
+        if input > self.maxval:
+            raise Exception('input (%s) greater than maxval (%s - %s)' % (str(input), str(self.maxval)))
+    
+        if type(input) is float and math.isnan(input):
+            input = None
+    
+        output = [0 for i in range(self.N)]
+    
+        # Compute the center bin. We use the first bit to be set in the output as the index
+        centerbin = int(((input - self.minval) + self.resolution/2) / self.resolution) + self.padding
+        minbin = centerbin - self.halfwidth
+        bucketid = minbin
+    
+        if bucketid is None:
+            # None is returned for missing value
+            for i in range(self.N): output[i] = 0
+    
+        else:
+            # The bucket index is the index of the first bit to set in the output
+            for i in range(self.N): output[i] = 0
+            minbin = int(bucketid)
+            maxbin = int(minbin + 2 * self.halfwidth)
+            assert minbin >= 0
+            assert maxbin < self.N
+            for i in range(minbin, maxbin + 1): output[i] = 1
+    
+        return output
 
-    if input is not None and not isinstance(input, int):
-        raise TypeError("Expected a scalar input but got input of type %s" % type(input))
-
-    if input < minval:
-        raise Exception('input (%s) less than minvalue (%s)' % (str(input), str(minval)))
-
-    if input > maxval:
-        raise Exception('input (%s) greater than maxval (%s - %s)' % (str(input), str(maxval)))
-
-    if type(input) is float and math.isnan(input):
-        input = None
-
-
-    output = [0 for i in range(N)]
-
-    # Compute the center bin. We use the first bit to be set in the output as the index
-    centerbin = int(((input - minval) + resolution/2) / resolution) + padding
-    minbin = centerbin - halfwidth
-    bucketid = minbin
-
-    if bucketid is None:
-        # None is returned for missing value
-        for i in range(N): output[i] = 0
-
-    else:
-        # The bucket index is the index of the first bit to set in the output
-        for i in range(N): output[i] = 0
-        minbin = int(bucketid)
-        maxbin = int(minbin + 2 * halfwidth)
-        assert minbin >= 0
-        assert maxbin < N
-        for i in range(minbin, maxbin + 1): output[i] = 1
-
-    return output
 
 
 ##################
@@ -284,9 +293,10 @@ class Region():
 
 
 if __name__ == "__main__":
+    enc = Encoder()
     r = Region()
     while(True):
-        r.process(encode(random.randint(-30, 110)))
+        r.process(enc.encode(random.randint(enc.minval, enc.maxval)))
         r._prettyprint()
         print("\n")
         time.sleep(1)
