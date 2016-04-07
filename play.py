@@ -22,8 +22,8 @@ def encode(input):
     maxval = 120
 
     # Length of output
-    W = 11     # number of 1's (must be odd)
-    N = 400    # total number of bits (must be > w)
+    W = 11     # Number of 1's (must be odd)
+    N = 400    # Total number of bits (must be > w). Must be a perfect square for now.
 
     # Derived quantities
     inputrange = float(maxval - minval)
@@ -75,7 +75,13 @@ def encode(input):
 ##################
 
 def getBitAt(input, pos):
-    return input[20 * pos[0] + pos[1]]
+    """
+    Treats input as a 2D array and returns the bit at position (x,y) in the array.
+    @param input: a SDR (list).
+    @param pos: (x, y) pos in a 2D array.
+    @returns: a bit.
+    """
+    return input[int(math.sqrt(len(input))) * pos[0] + pos[1]]
 
 
 
@@ -84,8 +90,14 @@ def getBitAt(input, pos):
 ##############
 
 class Synapse():
-
+    """
+    Segment of a synapse that connects to another cell. Keeps track of its presynpatic
+    cell's position, permanence value and whether or not the Synapse is active.
+    """
+    
     threshold = 0.6
+    """Threshold value for permanence. If self.permanence > threshold, then this synapse is valid."""
+
 
     def __init__(self, inputpos, perm = 0.0):
         self.permanence = perm
@@ -94,8 +106,14 @@ class Synapse():
 
 
 class Dendrite():
-
+    """
+    Stems from cells (sometimes shared by a whole column). Keeps track of current Synapses
+    and of cells that might form synapses while learning.
+    """
+    
     npotential = 20
+    """The number of potential synapses for this Dendrite."""
+
 
     def __init__(self):
         self.potential = [(random.randint(0, int(math.sqrt(Region.ncolumns)) - 1), random.randint(0, int(math.sqrt(Region.ncolumns)) - 1)) for i in range(self.npotential)]
@@ -103,33 +121,55 @@ class Dendrite():
 
 
 class Cell():
+    """
+    A single computational unit. Keeps track of its dendrite segments, which determine
+    where a Cell gets its input from and its active/inactive/predictive state.
+    """
+
     
     def __init__(self, proximal):
+        """
+        A Column must send its shared Dendrite to each of its cells.
+        @param proximal: a Dendrite, shared with other Cells in the same Column.
+        """
+        
+        # Dendrite segments
         self.distal = []
         self.proximal = proximal
         
-        # This is not a property because Columns must tell their Cells whether or not
-        # they're active
-        self.state = "Inactive"   
+        # This is not a property b/c Columns tell their Cells when to activate
+        self.state = "Inactive"
+
 
 
 class Column():
+    """
+    An array of Cells. All the cells in one column share a single proximal Dendrite
+    segment.
+    """
+
+    ncells = 4
+    """Number of cells in this Column."""
+
 
     def __init__(self):
         self.proximal = Dendrite()
-        self.cells = [Cell(self.proximal) for c in range(4)]
+        self.cells = [Cell(self.proximal) for c in range(self.ncells)]
         self.boost = 1.0
 
 
     @property
     def state(self):
+        """A Column is active whenever at least one of its Cells is active."""
         if "Active" in [c.state for c in self.cells]:
             return "Active"
         else:
             return "Inactive"
 
+
     @state.setter
     def state(self, state):
+        # When a Column changes state, it must signal all of its Cells
         if state == "Active":
             predictive = [c for c in self.cells if c.state == "Predictive"]
             if predictive:
@@ -149,15 +189,23 @@ class Column():
 
 
 class Region():
+    """A Region is an array of Columns."""
 
     ncolumns = 400 # needs to be a perfect square for now!
+    """Number of columns in a Region."""
+    
+    density = 2./100
+    """The sparsity of the active columns."""
+
 
     def __init__(self):
         self.columns = [Column() for c in range(self.ncolumns)]
+        """A list of Columns. Call Region.columns2D for a 2D array."""
 
 
     @property
     def columns2D(self):
+        """Return the Columns as a 2D array."""
         cols2D = []
         side = int(math.sqrt(self.ncolumns))
         for x in range(side):
@@ -191,15 +239,17 @@ class Region():
 
         # inhibition code here
 
+
         ### CHANGE ME
         states = {}
-        index = int(400 - math.floor(len(input) * (2./100)))
+        index = int(int(len(input)) - math.floor(len(input) * self.density))
         srtd = sorted(self.columns, key=(lambda c: numvalid[c]))
         for col in srtd[:index]:
             col.state = "Inactive"
         for col in srtd[index+1:]:
             col.state = "Active"
-
+        ### CHANGE ME
+        
         
         # For each of the active columns, we adjust the permanence values of all the potential
         # synapses. The permanence values of synapses aligned with active input bits are
@@ -228,7 +278,7 @@ class Region():
                 if self.columns2D[x][y].state == "Active":
                     s += "■"
                 else:
-                    s += "."
+                    s += "·"
             print(s)
 
 
