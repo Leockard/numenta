@@ -1,6 +1,10 @@
 # notes.org
 # notes about numenta HTM
 
+* Implementation TODO
+  + Encoder must be a class
+  + generalize to non-square number (input length)
+
 * Possible inputs
   + historical weather data
   +     
