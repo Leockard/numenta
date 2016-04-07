@@ -3,45 +3,38 @@
 
 import math
 import random
-import numbers
 import time
 import os
 
 
-#################################
-# Scalar encoder
-# Sparse representation of floats
-# Shamelessly copy-pasted from
-# https://github.com/numenta/nupic/blob/master/src/nupic/encoders/scalar.py
-#################################
 
-# Record high and low temperature for NYC
-minval = -30
-maxval = 120
+#########################
+# Scalar encoder function
+#########################
 
-# Length of output
-W = 11     # number of 1's (must be odd)
-N = 400    # total number of bits (must be > w)
-
-# Derived quantities
-inputrange = float(maxval - minval)
-resolution = inputrange / N
-halfwidth = (W - 1)/2
-padding = halfwidth
-
-
-def encodeIntoArray(input):
+def encode(input):
     """
-    Encodes inputData and puts the encoded value in a list.
-    @param input: Data to encode. This should be validated by the encoder.
-    @returns: list of same length W
+    Encodes an int in a SDR and puts the encoded value in a list.  @param input: Data to
+    encode. This should be validated by the encoder.  @returns: list of same length W
     """
-    output = [0 for i in range(N)]
+    # Record high and low temperature for NYC
+    minval = -30
+    maxval = 120
+
+    # Length of output
+    W = 11     # number of 1's (must be odd)
+    N = 400    # total number of bits (must be > w)
+
+    # Derived quantities
+    inputrange = float(maxval - minval)
+    resolution = inputrange / N
+    halfwidth = (W - 1)/2
+    padding = halfwidth
 
     # Sanity checks
     if input == None: return [None]
 
-    if input is not None and not isinstance(input, numbers.Number):
+    if input is not None and not isinstance(input, int):
         raise TypeError("Expected a scalar input but got input of type %s" % type(input))
 
     if input < minval:
@@ -53,8 +46,10 @@ def encodeIntoArray(input):
     if type(input) is float and math.isnan(input):
         input = None
 
-    # Get the bucket index to use (compute the center bin). We use the first bit to be set
-    # in the encoded output as the bucket index.
+
+    output = [0 for i in range(N)]
+
+    # Compute the center bin. We use the first bit to be set in the output as the index
     centerbin = int(((input - minval) + resolution/2) / resolution) + padding
     minbin = centerbin - halfwidth
     bucketid = minbin
@@ -62,7 +57,6 @@ def encodeIntoArray(input):
     if bucketid is None:
         # None is returned for missing value
         for i in range(N): output[i] = 0
-        # output[0:selfn] = 0
 
     else:
         # The bucket index is the index of the first bit to set in the output
@@ -242,7 +236,7 @@ class Region():
 if __name__ == "__main__":
     r = Region()
     while(True):
-        r.process(encodeIntoArray(random.randint(minval, maxval)))
+        r.process(encode(random.randint(-30, 110)))
         r._prettyprint()
         print("\n")
         time.sleep(1)
