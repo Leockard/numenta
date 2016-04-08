@@ -28,9 +28,9 @@ class Encoder():
 
     # Derived quantities
     inputrange = float(maxval - minval)
-    resolution = inputrange / N
     halfwidth = (W - 1)/2
     padding = halfwidth
+    resolution = inputrange / (N - 2 * halfwidth)
     
 
     def encode(self, input):
@@ -336,7 +336,7 @@ if __name__ == "__main__":
     enc = Encoder()
     r = Region()
     while(True):
-        x = random.randint(enc.minval, enc.maxval)
+        x = random.randint(enc.minval, encmaxval - 1)
 
         data = enc.encode(x)
         print_binary_matrix(roll_array(data))
