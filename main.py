@@ -254,6 +254,8 @@ class Region():
             # The number of active synapses is multiplied by a "boosting" factor which is
             # dynamically determined by how often a column is active relative to its neighbors.
             numvalid[col] *= col.boost
+
+        print("Valid synapses: " + str(numvalid[self.columns[-1]]))
          
         # The columns with the highest activations after boosting disable all but a fixed
         # percentage of the columns within an inhibition radius. The inhibition radius is
@@ -265,12 +267,12 @@ class Region():
         ### CHANGE ME
         srtd = sorted(self.columns, key=(lambda c: numvalid[c]))
         index = Encoder.N - int(Encoder.N * self.density)
-        activecols = srtd[:index]
-        inactivecols = srtd[index:]
+        inactivecols = srtd[:index]
+        activecols = srtd[index:]
         for col in activecols:
-            col.state = "Inactive"
-        for col in inactivecols:
             col.state = "Active"
+        for col in inactivecols:
+            col.state = "Inactive"
         ### CHANGE ME
         
 
@@ -281,13 +283,13 @@ class Region():
             activesyn = [s for s in col.proximal.synapses
                              if getBitAt(input, s.inputpos) == 1]
             for s in activesyn:
-                s.permanence += Synapse.permdelta
+                s.permanence = min(s.permanence + Synapse.permdelta, 1.0)
                 s.valid   # Force recomputation of state
 
             # Permanence of synapses with inactive input bits are decreased.
             inactivesyn = list(set(col.proximal.synapses) - set(activesyn))
             for s in inactivesyn:
-                s.permanence -= Synapse.permdelta
+                s.permanence = max(0.0, s.permanence - Synapse.permdelta)
                 s.valid   # Force recomputation of state
 
         # return numvalid
@@ -313,6 +315,7 @@ def print_binary_matrix(mat, one="■", zero="·"):
                     s += zero
             print(s)
 
+
 def roll_array(data):
     mat = []
     side = int(math.sqrt(len(data)))
@@ -324,6 +327,12 @@ def roll_array(data):
     return mat
 
 
+def log(msg):
+    filename = "logs/main.txt"
+    os.system("touch " + filename)
+    os.system("echo '" + msg + "' > " + filename)
+
+
 
 ########
 # MAIN
@@ -331,6 +340,7 @@ def roll_array(data):
     
 
 if __name__ == "__main__":
+    log("\n\nStarting at " + str(time.time()))
     random.seed()
     
     enc = Encoder()
@@ -339,12 +349,15 @@ if __name__ == "__main__":
         x = random.randint(enc.minval, enc.maxval - 1)
 
         data = enc.encode(x)
-        print_binary_matrix(roll_array(data))
-        print(x)
+        print("Input: " + str(x))
         print("\n")
         
         r.process(data)
         r._prettyprint()
+
+        print("\n")
+        for tu in [(s.inputpos, round(s.permanence, 2)) for s in r.columns[-1].proximal.synapses]:
+            print(tu)
         
         time.sleep(1)
         os.system("clear")
