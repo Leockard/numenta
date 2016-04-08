@@ -134,7 +134,10 @@ class Dendrite():
 
 
     def __init__(self):
-        potential = [(random.randint(0, int(math.sqrt(Region.ncolumns)) - 1), random.randint(0, int(math.sqrt(Region.ncolumns)) - 1)) for i in range(self.npotential)]
+        def randpos(maxval):
+            return (random.randint(0, maxval), random.randint(0, maxval))
+
+        potential = [randpos(int(math.sqrt(Region.ncolumns)) - 1) for i in range(self.npotential)]
         self.synapses = [Synapse(p, random.random()) for p in potential]
 
 
@@ -260,11 +263,10 @@ class Region():
         # inhibition code here
 
         ### CHANGE ME
-        states = {}
-        index = int(int(len(input)) - math.floor(len(input) * self.density))
         srtd = sorted(self.columns, key=(lambda c: numvalid[c]))
+        index = Encoder.N - int(Encoder.N * self.density)
         activecols = srtd[:index]
-        inactivecols = srtd[index+1:]
+        inactivecols = srtd[index:]
         for col in activecols:
             col.state = "Inactive"
         for col in inactivecols:
@@ -326,8 +328,11 @@ def roll_array(data):
 ########
 # MAIN
 ########
+    
 
 if __name__ == "__main__":
+    random.seed()
+    
     enc = Encoder()
     r = Region()
     while(True):
