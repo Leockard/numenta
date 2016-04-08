@@ -195,7 +195,7 @@ class Column():
         if state == "Active":
             predictive = [c for c in self.cells if c.state == "Predictive"]
             if predictive:
-                # If there's at least one predictive cell, activate only that one
+                # If there are cells in Predictive state, activate only those ones
                 for pred in predictive :
                     pred.state = "Active"
                 for npred in list(set(self.cells) - set(predictive)):
@@ -241,6 +241,10 @@ class Region():
 
     def process(self, input):
         """Process some sinput data (spatial pooler)."""
+
+        ### Spatial pooler
+        ### input: SDR of the input data
+        ### output: a list of active columns
         
         # For any given input, determine how many valid synapses on each column are
         # connected to active input bits
@@ -267,12 +271,12 @@ class Region():
         ### CHANGE ME
         srtd = sorted(self.columns, key=(lambda c: numvalid[c]))
         index = Encoder.N - int(Encoder.N * self.density)
+
+        # Here, we compute which columns are the "winners" (soon to be activated).  We do
+        # not set col.state yet, because that will force every cell in each column to
+        # update its state too. We need to do that after the permanence values have been recomputed.
         inactivecols = srtd[:index]
         activecols = srtd[index:]
-        for col in activecols:
-            col.state = "Active"
-        for col in inactivecols:
-            col.state = "Inactive"
         ### CHANGE ME
         
 
@@ -292,7 +296,20 @@ class Region():
                 s.permanence = max(0.0, s.permanence - Synapse.permdelta)
                 s.valid   # Force recomputation of state
 
-        # return numvalid
+
+        ### Temporal pooler
+        ### input: the list of active columns, activecols
+        ### output: None
+
+        # Once the permanence values have been updated, we change the state of each
+        # column, which in turn forces every cell to updated its state.
+        for col in activecols:
+            col.state = "Active"
+        for col in inactivecols:
+            col.state = "Inactive"
+
+
+        return
 
 
     def _prettyprint(self):
