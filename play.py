@@ -131,8 +131,8 @@ class Dendrite():
 
 
     def __init__(self):
-        self.potential = [(random.randint(0, int(math.sqrt(Region.ncolumns)) - 1), random.randint(0, int(math.sqrt(Region.ncolumns)) - 1)) for i in range(self.npotential)]
-        self.synapses = [Synapse(p, random.random()) for p in self.potential]
+        potential = [(random.randint(0, int(math.sqrt(Region.ncolumns)) - 1), random.randint(0, int(math.sqrt(Region.ncolumns)) - 1)) for i in range(self.npotential)]
+        self.synapses = [Synapse(p, random.random()) for p in potential]
 
 
 
@@ -268,11 +268,10 @@ class Region():
         ### CHANGE ME
         
         
-        # For each of the active columns, we adjust the permanence values of all the potential
-        # synapses. The permanence values of synapses aligned with active input bits are
-        # increased. The permanence values of synapses aligned with inactive input bits are
-        # decreased. The changes made to permanence values may change some synapses from being
-        # valid to not valid, and vice-versa.
+        # For each active column, adjust the permanence of all the potential synapses.
+        # Permanance of synapses with active input is increased.
+        # Permanence of synapses with inactive input bits are decreased.
+        # These changes may validate inactive synapses, and vice-versa.
 
         # learning code here
 
