@@ -336,7 +336,7 @@ if __name__ == "__main__":
     enc = Encoder()
     r = Region()
     while(True):
-        x = random.randint(enc.minval, encmaxval - 1)
+        x = random.randint(enc.minval, enc.maxval - 1)
 
         data = enc.encode(x)
         print_binary_matrix(roll_array(data))
