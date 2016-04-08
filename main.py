@@ -297,7 +297,9 @@ class Region():
 
     def _prettyprint(self):
         """Prints a visualization of active/predictive/inactive columns."""
-        print_binary_matrix(list(map(lambda r: (list(map(lambda c: c.state == "Active", r))), self.columns2D)))
+        # print_binary_matrix(list(map(lambda r: (list(map(lambda c: c.state == "Active", r))), self.columns2D)))
+        pretty_print_matrix(list(map(lambda r: (list(map(lambda c: sum([cell.state == "Active" and 1 or 0 for cell in c.cells]), r))), self.columns2D)),
+                                    {4: "■", 3: "X", 2: "x", 1: "o", 0: "·"})
 
 
 
@@ -305,15 +307,12 @@ class Region():
 # Helper functions
 ##################
 
-def print_binary_matrix(mat, one="■", zero="·"):
+def pretty_print_matrix(mat, rules):
     for x in range(20):
-            s = ""
-            for y in range(20):
-                if mat[x][y]:
-                    s += one
-                else:
-                    s += zero
-            print(s)
+        s = ""
+        for y in range(20):
+            s += rules[mat[x][y]]
+        print(s)
 
 
 def roll_array(data):
