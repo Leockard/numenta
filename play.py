@@ -111,7 +111,13 @@ class Synapse():
     def __init__(self, inputpos, perm = 0.0):
         self.permanence = perm
         self.inputpos = inputpos
-        self.valid = perm > self.threshold
+
+
+    @property
+    def valid(self):
+        """Whether or not this synapse is valid."""
+        return self.permanence > self.threshold
+
 
 
 class Dendrite():
@@ -127,6 +133,7 @@ class Dendrite():
     def __init__(self):
         self.potential = [(random.randint(0, int(math.sqrt(Region.ncolumns)) - 1), random.randint(0, int(math.sqrt(Region.ncolumns)) - 1)) for i in range(self.npotential)]
         self.synapses = [Synapse(p, random.random()) for p in self.potential]
+
 
 
 class Cell():
@@ -195,6 +202,7 @@ class Column():
         if state == "Inactive":
             for c in self.cells:
                 c.state = "Inactive"
+
 
 
 class Region():
