@@ -5,6 +5,8 @@
   + generalize to non-square number (input length)
   + implement radius of inhibition code
   + implement dynamical boosting
+  + implement permanence values bias (see Spatial Pooler Implementation section 0).
+  + implement minOverlap (see Spatial Pooler Implementation section 1)
 
 
 * Possible inputs
@@ -284,16 +286,13 @@
   the temporal pooler exploits.
   
   Assume we have a hypothetical region that always forms representations by using 200
-  active cells out of a total of 10,000 cells (2% of the cells are active at any time).
-  How can we remember and recognize a particular pattern of 200 active cells? A simple way
-  to do this is to make a list of the 200 active cells we care about. If we see the same
-  200 cells active again we recognize the pattern. However, what if we made a list of only
-  20 of the 200 active cells and ignored the other 180? What would happen? You might think
-  that remembering only 20 cells would cause lots of errors, that those 20 cells would be
-  active in many different patterns of 200. But this isn’t the case. Because the patterns
-  are large and sparse (in this example 200 active cells out of 10,000), remembering 20
-  active cells is almost as good as remembering all 200. The chance for error in a
-  practical system is exceedingly small and we have reduced our memory needs considerably.
+  active cells out of a total of 10,000 cells. How can we remember and recognize a
+  particular pattern of 200 active cells? We make a list of only 20 of the 200 active
+  cells and ignored the others. You might think that remembering only 20 cells would cause
+  many errors, but this isn’t the case. Because the patterns are large and sparse,
+  remembering 20 active cells is almost as good as remembering all 200. The chance for
+  error in a practical system is exceedingly small and we have reduced our memory needs
+  considerably.
   
   The cells in an HTM region take advantage of this property. Each of a cell’s dendrite
   segments has a set of connections to other cells in the region. A dendrite segment forms
@@ -327,27 +326,30 @@
      the column. The resulting set of active cells is the representation of the input in
      the context of prior input.
   
-  2. For every dendrite segment on every cell in the region, count how many established
-     synapses are connected to active cells. If the number exceeds a threshold, that
-     dendrite segment is marked as active. Cells with active dendrite segments are put in
-     the predictive state unless they are already active due to feedforward input. Cells
-     with no active dendrites and not active due to bottom-up input become or remain
-     inactive. The collection of cells now in the predictive state is the prediction of
-     the region.
+  2. For every dendrite segment (proximal AND distal?) on every cell in the region, count
+     how many established (active?) synapses are connected to active cells. If the number
+     exceeds a threshold, that dendrite segment is marked as active. Cells with active
+     dendrite segments are put in the predictive state unless they are already
+     active. Cells with no active dendrites and not active due to bottom-up input become
+     or remain inactive. The collection of cells now in the predictive state is the
+     prediction of the region.
   
   3. When a dendrite segment becomes active, modify the permanence values of all the
-     synapses associated with the segment. For every potential synapse on the active
-     dendrite segment, increase the permanence of those synapses that are connected to
-     active cells and decrement the permanence of those synapses connected to inactive
-     cells. These changes to synapse permanence are marked as temporary. This modifies the
+     synapses in that segment:
+     + increase the permanence of those synapses that are connected to active cells
+     + decrement the permanence of those synapses connected to inactive cells
+       (forcing to predict one single pattern).
+     These changes to synapse permanence are marked as temporary. This modifies the
      synapses on segments that are already trained sufficiently to make the segment
-     active, and thus lead to a prediction. However, we always want to extend predictions
-     further back in time if possible. Thus, we pick a second dendrite segment on the same
-     cell to train. For the second segment we choose the one that best matches the state
-     of the system in the previous time step. For this segment, using the state of the
-     system in the previous time step, increase the permanence of those synapses that are
-     connected to active cells and decrement the permanence of those synapses connected to
-     inactive cells. These changes to synapse permanence are marked as temporary.
+     active, and thus lead to a prediction.
+     
+     However, we always want to extend predictions further back in time if possible. Thus,
+     we pick a second dendrite segment on the same cell to train. For the second segment
+     we choose the one that best matches the state of the system in the previous time
+     step. For this segment, using the state of the system in the previous time step:
+     + increase the permanence of those synapses that are connected to active cells
+     + decrement the permanence of those synapses connected to inactive cells.
+     These changes to synapse permanence are marked as temporary.
   
   4. Whenever a cell switches from being inactive to active due to feed-forward input, we
      traverse each potential synapse associated with the cell and remove any temporary
@@ -384,19 +386,19 @@
      over the input region, and the permanence values have a bias towards this center
      (they have higher values near the center).
      
-  1. Compute the overlap with the current input for each column.  Given an input vector,
+  1. Compute the overlap with the current input for each column. Given an input vector,
      the first phase calculates the overlap of each column with that vector, which is
      simply the number of connected synapses with active inputs, multiplied by its
      boost. If this value is below minOverlap, we set the overlap score to zero.
 
-  2. Compute the winning columns after inhibition.  The second phase calculates which
+  2. Compute the winning columns after inhibition. The second phase calculates which
      columns remain as winners (active) after the inhibition step. desiredLocalActivity is
      a parameter that controls the number of columns that end up winning. For example, if
      desiredLocalActivity is 10, a column will be a winner if its overlap score is greater
      than the score of the 10'th highest column within its inhibition radius.
 
-  3. Update synapse permanence and internal variables.  The third phase performs learning;
-     it updates the permanence values of all synapses as necessary, as well as the boost
+  3. Update synapse permanence and internal variables. The third phase performs learning;
+     it updates the permanence values of all synapses as necessary, as well as the boosta
      and inhibition radius. For winning columns, if a synapse is active, its permanence
      value is incremented, otherwise it is decremented. There are two separate boosting
      mechanisms in place to help a column learn connections. If a column does not win
