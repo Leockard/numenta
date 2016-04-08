@@ -261,9 +261,11 @@ class Region():
         states = {}
         index = int(int(len(input)) - math.floor(len(input) * self.density))
         srtd = sorted(self.columns, key=(lambda c: numvalid[c]))
-        for col in srtd[:index]:
+        activecols = srtd[:index]
+        inactivecols = srtd[index+1:]
+        for col in activecols:
             col.state = "Inactive"
-        for col in srtd[index+1:]:
+        for col in inactivecols:
             col.state = "Active"
         ### CHANGE ME
         
@@ -275,11 +277,9 @@ class Region():
 
         # learning code here
 
-
-        # When a column becomes active, it looks at all its cells. If one or more cells
-        # are already in the predictive state, only those cells become active.
-
-        # for col in self.columns: col.state = states[col]
+        # Force synapses to recompute their state
+        for c in activecols:
+            for s in c.proximal.synapses: s.valid
 
 
         # return numvalid
