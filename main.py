@@ -309,6 +309,18 @@ class Region():
             col.state = "Inactive"
 
 
+        # Count how many active synapses are connected to active cells. If there are
+        # enoguh of them, mark the segment as active.
+
+        # For every dendrite segment (proximal AND distal?) on every cell in the region,
+        # count how many established (active?) synapses are connected to active cells. If
+        # the number exceeds a threshold, that dendrite segment is marked as active. Cells
+        # with active dendrite segments are put in the predictive state unless they are
+        # already active. Cells with no active dendrites and not active due to bottom-up
+        # input become or remain inactive. The collection of cells now in the predictive
+        # state is the prediction of the region.
+
+
         return
 
 
