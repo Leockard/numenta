@@ -326,7 +326,7 @@
      the column. The resulting set of active cells is the representation of the input in
      the context of prior input.
   
-  2. For every dendrite segment (proximal AND distal?) on every cell in the region, count
+  2. For every dendrite segment (only distal?) on every cell in the region, count
      how many established (active?) synapses are connected to active cells. If the number
      exceeds a threshold, that dendrite segment is marked as active. Cells with active
      dendrite segments are put in the predictive state unless they are already
@@ -412,3 +412,30 @@
   simply skipping Phase 3.
 
   
+* Temporal Pooling Implementation
+  The input to this code is activeColumns(t), as computed by the spatial pooler. The code
+  computes the active and predictive state for each cell at the current timestep, t. The
+  boolean OR of the active and predictive states for each cell forms the output of the
+  temporal pooler for the next level.
+
+  1. Compute the active state, activeState(t), for each cell in a winning column. For those
+     columns, the code further selects one cell per column as the learning cell
+     (learnState). The logic is as follows: if the bottom-up input was predicted by any cell
+     (i.e. its predictiveState output was 1 due to a sequence segment), then those cells
+     become active. If that segment became active from cells chosen with learnState on, this
+     cell is selected as the learning cell. If the bottom-up input was not predicted, then
+     all cells in the column become active. In addition, the best matching cell is chosen as
+     the learning cell and a new segment is added to that cell.
+  
+  2. Compute the predicted state, predictiveState(t), for each cell. A cell will turn to
+     predictive state if one of its segments becomes active, i.e. if enough of its lateral
+     inputs are currently active due to feed-forward input. In this case, the cell queues up
+     the following changes: a) reinforcement of the currently active segment, and b)
+     reinforcement of a segment that could have predicted this activation, i.e. a segment
+     that has a (potentially weak) match to activity during the previous time step.
+  
+  3. Update synapses (carries out learning). Segment updates that have been queued up are
+     actually implemented once we get feedforward input and if the cell is chosen as a
+     learning cell. Otherwise, if the cell ever stops predicting for any reason, we
+     negatively reinforce the segments.
+
