@@ -107,7 +107,7 @@ class Synapse():
     threshold = 0.6
     """Threshold value for permanence. If self.permanence > threshold, then this synapse is valid."""
 
-    permdelta = 0.05
+    permdelta = 0.01
     """Amount by which permanence value Increments or decrements when learning."""
 
 
@@ -336,13 +336,15 @@ if __name__ == "__main__":
     enc = Encoder()
     r = Region()
     while(True):
-        data = enc.encode(random.randint(enc.minval, enc.maxval))
+        x = random.randint(enc.minval, enc.maxval)
+
+        data = enc.encode(x)
         print_binary_matrix(roll_array(data))
+        print(x)
         print("\n")
         
         r.process(data)
         r._prettyprint()
-        print("\n")
         
         time.sleep(1)
         os.system("clear")
