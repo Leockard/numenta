@@ -3,6 +3,8 @@
 
 * Implementation TODO
   + generalize to non-square number (input length)
+  + synapses do not need a separate list for potential synapses
+
 
 * Possible inputs
   + historical weather data
