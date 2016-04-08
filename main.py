@@ -107,6 +107,9 @@ class Synapse():
     threshold = 0.6
     """Threshold value for permanence. If self.permanence > threshold, then this synapse is valid."""
 
+    permdelta = 0.05
+    """Amount by which permanence value Increments or decrements when learning."""
+
 
     def __init__(self, inputpos, perm = 0.0):
         self.permanence = perm
@@ -256,7 +259,6 @@ class Region():
 
         # inhibition code here
 
-
         ### CHANGE ME
         states = {}
         index = int(int(len(input)) - math.floor(len(input) * self.density))
@@ -269,18 +271,22 @@ class Region():
             col.state = "Active"
         ### CHANGE ME
         
-        
+
         # For each active column, adjust the permanence of all the potential synapses.
-        # Permanance of synapses with active input is increased.
-        # Permanence of synapses with inactive input bits are decreased.
         # These changes may validate inactive synapses, and vice-versa.
+        for col in activecols:
+            # Permanence of synapses with active input is increased.
+            activesyn = [s for s in col.proximal.synapses
+                             if getBitAt(input, s.inputpos) == 1]
+            for s in activesyn:
+                s.permanence += Synapse.permdelta
+                s.valid   # Force recomputation of state
 
-        # learning code here
-
-        # Force synapses to recompute their state
-        for c in activecols:
-            for s in c.proximal.synapses: s.valid
-
+            # Permanence of synapses with inactive input bits are decreased.
+            inactivesyn = list(set(col.proximal.synapses) - set(activesyn))
+            for s in inactivesyn:
+                s.permanence -= Synapse.permdelta
+                s.valid   # Force recomputation of state
 
         # return numvalid
 
