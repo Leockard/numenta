@@ -3,6 +3,7 @@
 
 * Implementation TODO
   + generalize to non-square number (input length)
+  + implement radius of inhibition code
 
 
 * Possible inputs
