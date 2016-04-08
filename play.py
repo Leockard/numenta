@@ -280,24 +280,51 @@ class Region():
 
     def _prettyprint(self):
         """Prints a visualization of active/predictive/inactive columns."""
-        for x in range(20):
+        print_binary_matrix(list(map(lambda r: (list(map(lambda c: c.state == "Active", r))), self.columns2D)))
+
+
+
+##################
+# Helper functions
+##################
+
+def print_binary_matrix(mat, one="■", zero="·"):
+    for x in range(20):
             s = ""
-            
             for y in range(20):
-                if self.columns2D[x][y].state == "Active":
-                    s += "■"
+                if mat[x][y]:
+                    s += one
                 else:
-                    s += "·"
+                    s += zero
             print(s)
 
+def roll_array(data):
+    mat = []
+    side = int(math.sqrt(len(data)))
+    for x in range(side):
+        mat.append([])
+        for y in range(side):
+            mat[x].append(data[x*side + y])
 
+    return mat
+
+
+
+########
+# MAIN
+########
 
 if __name__ == "__main__":
     enc = Encoder()
     r = Region()
     while(True):
-        r.process(enc.encode(random.randint(enc.minval, enc.maxval)))
+        data = enc.encode(random.randint(enc.minval, enc.maxval))
+        print_binary_matrix(roll_array(data))
+        print("\n")
+        
+        r.process(data)
         r._prettyprint()
         print("\n")
+        
         time.sleep(1)
         os.system("clear")
