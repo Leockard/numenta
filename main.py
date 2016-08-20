@@ -1,5 +1,6 @@
-# play.py
-# first attempt at a HTM implementation
+"""
+Attempt at a HTM implementation directly from the paper.
+"""
 
 import math
 import random
@@ -7,15 +8,14 @@ import time
 import os
 
 
-
-#########################
+###########################################################################
 # Scalar encoder function
-#########################
+###########################################################################
 
-class Encoder():
+class Encoder:
     """
-    Provides encode(), which turns an int into a SDR. Holds a bunch of hard-coded
-    constants.
+    Provides encode(), which turns an intteger into a SDR.  Holds a bunch of
+    hard-coded constants.
     """
 
     # Record high and low temperature for NYC
@@ -24,57 +24,41 @@ class Encoder():
 
     # Length of output
     W = 11     # Number of 1's (must be odd)
-    N = 400    # Total number of bits (must be > w). Must be a perfect square for now.
+    N = 400    # Total number of bits (must be > w). Perfect square for now.
 
     # Derived quantities
     inputrange = float(maxval - minval)
     halfwidth = (W - 1)/2
     padding = halfwidth
     resolution = inputrange / (N - 2 * halfwidth)
-    
 
-    def encode(self, input):
+
+    def encode(self, integer):
+        """Encodes a single integer in a SDR.
+
+        @param integer: Data to encode, an int.
+        @returns: list of bits of length Encoder.W.
         """
-        Encodes an int in a SDR and puts the encoded value in a list.
-        @param input: Data to encode, an int.
-        @returns: list of bits of length W.
-        """
-    
-        # Sanity checks
-        if input == None: return [None]
-    
-        if input is not None and not isinstance(input, int):
-            raise TypeError("Expected a scalar input but got input of type %s" % type(input))
-    
-        if input < self.minval:
-            raise Exception('input (%s) less than minvalue (%s)' % (str(input), str(self.minval)))
-    
-        if input > self.maxval:
-            raise Exception('input (%s) greater than maxval (%s - %s)' % (str(input), str(self.maxval)))
-    
-        if type(input) is float and math.isnan(input):
-            input = None
-    
-        output = [0 for i in range(self.N)]
-    
-        # Compute the center bin. We use the first bit to be set in the output as the index
-        centerbin = int(((input - self.minval) + self.resolution/2) / self.resolution) + self.padding
-        minbin = centerbin - self.halfwidth
-        bucketid = minbin
-    
-        if bucketid is None:
-            # None is returned for missing value
-            for i in range(self.N): output[i] = 0
-    
-        else:
-            # The bucket index is the index of the first bit to set in the output
-            for i in range(self.N): output[i] = 0
-            minbin = int(bucketid)
-            maxbin = int(minbin + 2 * self.halfwidth)
-            assert minbin >= 0
-            assert maxbin < self.N
-            for i in range(minbin, maxbin + 1): output[i] = 1
-    
+        assert isinstance(integer, int), \
+            'Expected an int but got {}'.format(type(integer))
+        assert integer >= self.minval, \
+            'Input {} less than minvalue {}'.format(integer, self.minval)
+        assert integer < self.maxval, \
+            'Input {} greater than maxval {}'.format(integer, self.maxval)
+
+        output = [0 for _ in range(self.N)]
+
+        # Compute the indices where the 1s start and end
+        centerbin = integer - self.minval + self.resolution//2
+        centerbin = centerbin // self.resolution + self.padding
+        minbin = round(centerbin - self.halfwidth)
+        maxbin = round(minbin + 2 * self.halfwidth)
+
+        assert minbin >= 0
+        assert maxbin < self.N
+        for i in range(minbin, maxbin + 1):
+            output[i] = 1
+
         return output
 
 
@@ -83,14 +67,16 @@ class Encoder():
 # Helper functions
 ##################
 
-def getBitAt(input, pos):
+def get_bit_at(sparse, x, y):
     """
-    Treats input as a 2D array and returns the bit at position (x,y) in the array.
-    @param input: a SDR (list).
-    @param pos: (x, y) pos in a 2D array.
-    @returns: a bit.
+    Returns the bit at position (x,y) in the array.
+
+    @param sparse: an unrolled SDR
+    @param x, y: (x, y) pos in the rolled up SDR
+    @returns: a bit
     """
-    return input[int(math.sqrt(len(input))) * pos[0] + pos[1]]
+    side = int(math.sqrt(len(sparse)))
+    return sparse[side * x + y]
 
 
 
@@ -100,292 +86,268 @@ def getBitAt(input, pos):
 
 class Synapse():
     """
-    Segment of a synapse that connects to another cell. Keeps track of its presynpatic
-    cell's position, permanence value and whether or not the Synapse is active.
+    Segment of a synapse that connects to another cell.  Keeps track of its
+    presynpatic cell's position, permanence value and whether or not the
+    Synapse is active.
     """
-    
-    threshold = 0.6
-    """Threshold value for permanence. If self.permanence > threshold, then this synapse is valid."""
 
-    permdelta = 0.01
-    """Amount by which permanence value Increments or decrements when learning."""
+    THRESHOLD = 0.6
+    """If self.permanence > threshold, then this synapse is valid."""
+
+    PERMDELTA = 0.01
+    """Amount by which permanence value changes when learning."""
 
 
-    def __init__(self, inputpos, perm = 0.0):
+    def __init__(self, inputpos, perm=0.0):
         self.permanence = perm
         self.inputpos = inputpos
 
-
-    @property
-    def valid(self):
+    def is_valid(self):
         """Whether or not this synapse is valid."""
-        return self.permanence > self.threshold
+        return self.permanence > Synapse.THRESHOLD
 
+    def increase_perm(self):
+        """Increase permanence value."""
+        self.permanence = min(self.permanence + Synapse.PERMDELTA, 1.0)
+
+    def decrease_perm(self):
+        """Decrease permanence value."""
+        self.permanence = max(0.0, self.permanence - Synapse.PERMDELTA)
 
 
 class Dendrite():
     """
-    Stems from cells (sometimes shared by a whole column). Keeps track of current Synapses
-    and of cells that might form synapses while learning.
+    Stems from cells (sometimes shared by a whole column).  Keeps track of
+    current Synapses and of cells that might form synapses while learning.
     """
-    
-    npotential = 20
+
+    NPOTENTIAL = 20
     """The number of potential synapses for this Dendrite."""
 
 
     def __init__(self):
-        def randpos(maxval):
+        def randpos():
+            """Return a random (x, y) where x, y are valid column indices."""
+            maxval = round(math.sqrt(Region.NCOLUMNS)) - 1
             return (random.randint(0, maxval), random.randint(0, maxval))
 
-        potential = [randpos(int(math.sqrt(Region.ncolumns)) - 1) for i in range(self.npotential)]
-        self.synapses = [Synapse(p, random.random()) for p in potential]
-
+        potential = (randpos() for _ in range(Dendrite.NPOTENTIAL))
+        self.synapses = [Synapse(pos, random.random()) for pos in potential]
 
 
 class Cell():
     """
-    A single computational unit. Keeps track of its dendrite segments, which determine
-    where a Cell gets its input from and its active/inactive/predictive state.
+    A single computational unit.  Keeps track of its dendrite segments,
+    which determine where a Cell gets its input from, and its state.
     """
 
-    
     def __init__(self, proximal):
         """
         A Column must send its shared Dendrite to each of its cells.
-        @param proximal: a Dendrite, shared with other Cells in the same Column.
+
+        @param proximal: a Dendrite, shared among Cells in the same Column.
         """
-        
-        # Dendrite segments
+
         self.distal = []
         self.proximal = proximal
-        
-        # This is not a property b/c Columns tell their Cells when to activate
-        self.state = "Inactive"
 
+        # This is not a property because Columns tell their Cells when to
+        # activate
+        self.state = Column.INACTIVE
 
 
 class Column():
     """
-    An array of Cells. All the cells in one column share a single proximal Dendrite
-    segment.
+    An array of Cells.  All the cells in one column share a single proximal
+    Dendrite segment.
     """
 
-    ncells = 4
+    NCELLS = 4
     """Number of cells in this Column."""
 
+    INACTIVE = 0
+    ACTIVE = 1
+    PREDICTIVE = 2
 
     def __init__(self):
         self.proximal = Dendrite()
-        self.cells = [Cell(self.proximal) for c in range(self.ncells)]
+        self.cells = [Cell(self.proximal) for _ in range(self.NCELLS)]
         self.boost = 1.0
 
+    def num_active_cells(self):
+        """Return the current number of active cells."""
+        return sum([cell.state == Column.ACTIVE for cell in self.cells])
 
     @property
     def state(self):
         """A Column is active whenever at least one of its Cells is active."""
-        if "Active" in [c.state for c in self.cells]:
-            return "Active"
+        if Column.ACTIVE in [c.state for c in self.cells]:
+            return Column.ACTIVE
         else:
-            return "Inactive"
-
+            return Column.INACTIVE
 
     @state.setter
     def state(self, state):
-        # When a Column changes state, it must signal all of its Cells
-        if state == "Active":
-            predictive = [c for c in self.cells if c.state == "Predictive"]
+        """Set the state of each Cell in this Column."""
+        if state == Column.ACTIVE:
+            predictive = {c for c in self.cells if c.state == Column.PREDICTIVE}
+
             if predictive:
-                # If there are cells in Predictive state, activate only those ones
-                for pred in predictive :
-                    pred.state = "Active"
-                for npred in list(set(self.cells) - set(predictive)):
-                    npred.state = "Inactive"
+                for cell in predictive:
+                    cell.state = Column.ACTIVE
+                for cell in set(self.cells) - predictive:
+                    cell.state = Column.INACTIVE
+
             else:
-                # else, activate every cell (surprise input!)
-                for c in self.cells:
-                    c.state = "Active"
-                
-        if state == "Inactive":
-            for c in self.cells:
-                c.state = "Inactive"
+                for cell in self.cells:
+                    cell.state = Column.ACTIVE
+
+        elif state == Column.INACTIVE:
+            for cell in self.cells:
+                cell.state = Column.INACTIVE
 
 
 
 class Region():
     """A Region is an array of Columns."""
 
-    ncolumns = 400 # needs to be a perfect square for now!
+    NCOLUMNS = 400 # needs to be a perfect square for now!
     """Number of columns in a Region."""
-    
+
     density = 2./100
     """The sparsity of the active columns."""
 
 
     def __init__(self):
-        self.columns = [Column() for c in range(self.ncolumns)]
-        """A list of Columns. Call Region.columns2D for a 2D array."""
-
+        self.columns = [Column() for _ in range(Region.NCOLUMNS)]
+        """A list of Columns. Call Region.column_matrix for a 2D array."""
 
     @property
-    def columns2D(self):
+    def column_matrix(self):
         """Return the Columns as a 2D array."""
-        cols2D = []
-        side = int(math.sqrt(self.ncolumns))
-        for x in range(side):
-            cols2D.append([])
-            for y in range(side):
-                cols2D[x].append(self.columns[x*side + y])
+        side = int(math.sqrt(Region.NCOLUMNS))
 
-        return cols2D
+        return [[self.columns[row * side + col] for col in range(side)]
+                for row in range(side)]
 
 
-    def process(self, input):
-        """Process some sinput data (spatial pooler)."""
+    def process(self, sparse):
+        """Process some input data (runs spatial and temporal pooler).
 
+        sparse: SDR of the input data.
+        """
         ### Spatial pooler
-        ### input: SDR of the input data
-        ### output: a list of active columns
-        
-        # For any given input, determine how many valid synapses on each column are
-        # connected to active input bits
+        ### input: the Sparse Ddistributed Representation of inpute data
+        ### output: the list of active columns, activecols
+
+        # Determine how many valid synapses on each column are connected to
+        # active input bits
         numvalid = {}
 
         for col in self.columns:
-            numvalid[col] = sum([1 for s in col.proximal.synapses
-                                     if s.valid
-                                     and getBitAt(input, s.inputpos) == 1])
-        
-            # The number of active synapses is multiplied by a "boosting" factor which is
-            # dynamically determined by how often a column is active relative to its neighbors.
+            numvalid[col] = len([syn for syn in col.proximal.synapses
+                                 if syn.is_valid() and
+                                 get_bit_at(sparse, *syn.inputpos) == 1])
+
+            # The number of active synapses is multiplied by a "boosting"
+            # factor which is dynamically determined by how often a column
+            # is active relative to its neighbors.
             numvalid[col] *= col.boost
 
-        print("Valid synapses: " + str(numvalid[self.columns[-1]]))
-         
-        # The columns with the highest activations after boosting disable all but a fixed
-        # percentage of the columns within an inhibition radius. The inhibition radius is
-        # itself dynamically determined by the spread (or "fan-out") of input bits. There
-        # is now a sparse set of active columns.
+        # The columns with the highest activations after boosting disable
+        # all but a fixed percentage of the columns within an inhibition
+        # radius.  The inhibition radius is determined by the spread of
+        # input bits.  There is now a sparse set of active columns.
 
         # inhibition code here
 
-        ### CHANGE ME
-        srtd = sorted(self.columns, key=(lambda c: numvalid[c]))
-        index = Encoder.N - int(Encoder.N * self.density)
 
-        # Here, we compute which columns are the "winners" (soon to be activated).  We do
-        # not set col.state yet, because that will force every cell in each column to
-        # update its state too. We need to do that after the permanence values have been recomputed.
+        ### CHANGE ME
+        srtd = sorted(self.columns, key=numvalid.get)
+        index = Encoder.N - round(Encoder.N * self.density)
+
+        # Here, we compute which columns are the "winners" (soon to be
+        # activated).  We do not set col.state yet, because that will force
+        # every cell in each column to update its state too.  We need to do
+        # that after the permanence values have been recomputed.
         inactivecols = srtd[:index]
         activecols = srtd[index:]
         ### CHANGE ME
-        
 
-        # For each active column, adjust the permanence of all the potential synapses.
-        # These changes may validate inactive synapses, and vice-versa.
+
+        # For each active column, adjust the permanence of all the
+        # potential synapses.  These changes may validate inactive
+        # synapses, and vice-versa.
         for col in activecols:
-            # Permanence of synapses with active input is increased.
-            activesyn = [s for s in col.proximal.synapses
-                             if getBitAt(input, s.inputpos) == 1]
-            for s in activesyn:
-                s.permanence = min(s.permanence + Synapse.permdelta, 1.0)
-                s.valid   # Force recomputation of state
+            activesyn = {syn for syn in col.proximal.synapses
+                         if get_bit_at(sparse, *syn.inputpos) == 1}
 
-            # Permanence of synapses with inactive input bits are decreased.
-            inactivesyn = list(set(col.proximal.synapses) - set(activesyn))
-            for s in inactivesyn:
-                s.permanence = max(0.0, s.permanence - Synapse.permdelta)
-                s.valid   # Force recomputation of state
+            for synapse in activesyn:
+                synapse.increase_perm()
+
+            inactivesyn = set(col.proximal.synapses) - activesyn
+            for synapse in inactivesyn:
+                synapse.decrease_perm()
 
 
         ### Temporal pooler
         ### input: the list of active columns, activecols
         ### output: None
 
-        # Once the permanence values have been updated, we change the state of each
-        # column, which in turn forces every cell to updated its state.
+        # Once the permanence values have been updated, we change the state
+        # of each column, which in turn forces every cell to update its
+        # state.
         for col in activecols:
-            col.state = "Active"
+            col.state = Column.ACTIVE
         for col in inactivecols:
-            col.state = "Inactive"
+            col.state = Column.INACTIVE
 
 
-        # Count how many active synapses are connected to active cells. If there are
-        # enoguh of them, mark the segment as active.
+        # Count how many active synapses are connected to active cells.  If
+        # there are enoguh of them, mark the segment as active.
 
-        # For every dendrite segment (proximal AND distal?) on every cell in the region,
-        # count how many established (active?) synapses are connected to active cells. If
-        # the number exceeds a threshold, that dendrite segment is marked as active. Cells
-        # with active dendrite segments are put in the predictive state unless they are
-        # already active. Cells with no active dendrites and not active due to bottom-up
-        # input become or remain inactive. The collection of cells now in the predictive
-        # state is the prediction of the region.
-
+        # For every dendrite segment (proximal AND distal?) on every cell
+        # in the region, count how many established (active?) synapses are
+        # connected to active cells.  If the number exceeds a threshold,
+        # that dendrite segment is marked as active.  Cells with active
+        # dendrite segments are put in the predictive state unless they are
+        # already active.  Cells with no active dendrites and not active
+        # due to bottom-up input become or remain inactive.  The collection
+        # of cells now in the predictive state is the prediction of the
+        # region.
 
         return
 
 
-    def _prettyprint(self):
-        """Prints a visualization of active/predictive/inactive columns."""
-        # print_binary_matrix(list(map(lambda r: (list(map(lambda c: c.state == "Active", r))), self.columns2D)))
-        pretty_print_matrix(list(map(lambda r: (list(map(lambda c: sum([cell.state == "Active" and 1 or 0 for cell in c.cells]), r))), self.columns2D)),
-                                    {4: "■", 3: "X", 2: "x", 1: "o", 0: "·"})
+    def __str__(self):
+        """Return a string representation of all columns."""
+        rules = {4: "■", 3: "X", 2: "x", 1: "o", 0: "·"}
+        strings = [''.join([rules[col.num_active_cells()] for col in row])
+                   for row in self.column_matrix]
+
+        return '\n'.join(strings)
 
 
-
-##################
-# Helper functions
-##################
-
-def pretty_print_matrix(mat, rules):
-    for x in range(20):
-        s = ""
-        for y in range(20):
-            s += rules[mat[x][y]]
-        print(s)
-
-
-def roll_array(data):
-    mat = []
-    side = int(math.sqrt(len(data)))
-    for x in range(side):
-        mat.append([])
-        for y in range(side):
-            mat[x].append(data[x*side + y])
-
-    return mat
-
-
-def log(msg):
-    filename = "logs/main.txt"
-    os.system("touch " + filename)
-    os.system("echo '" + msg + "' > " + filename)
-
-
-
-########
+################################################
 # MAIN
-########
-    
+################################################
 
-if __name__ == "__main__":
-    log("\n\nStarting at " + str(time.time()))
+def main():
+    """Run one HTM region learning over randomly-generated data."""
     random.seed()
-    
-    enc = Encoder()
-    r = Region()
-    while(True):
-        x = random.randint(enc.minval, enc.maxval - 1)
 
-        data = enc.encode(x)
-        print("Input: " + str(x))
-        print("\n")
-        
-        r.process(data)
-        r._prettyprint()
+    encoder = Encoder()
+    region = Region()
+    while True:
+        value = random.randint(encoder.minval, encoder.maxval - 1)
+        data = encoder.encode(value)
 
-        print("\n")
-        for tu in [(s.inputpos, round(s.permanence, 2)) for s in r.columns[-1].proximal.synapses]:
-            print(tu)
-        
+        region.process(data)
+        print(region)
+
         time.sleep(1)
         os.system("clear")
+
+
+if __name__ == "__main__":
+    main()

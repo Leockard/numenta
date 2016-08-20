@@ -1,17 +1,18 @@
 # notes.org
 # notes about numenta HTM
 
+
 * Implementation TODO
   + generalize to non-square number (input length)
   + implement radius of inhibition code
   + implement dynamical boosting
-  + implement permanence values bias (see Spatial Pooler Implementation section 0).
+  + implement permanence values bias (see Spatial Pooler Implementation
+    section 0).
   + implement minOverlap (see Spatial Pooler Implementation section 1)
 
 
 * Possible inputs
   + historical weather data
-  +     
 
 
 * Components
@@ -22,420 +23,488 @@
    + inactive
 
 ** Dendrite segments
-   In theory each HTM cell has one proximal dendrite segment and a dozen or two distal
-   dendrite segments.
-   + proximal segment receives feed-forward input (shared between the cells in a column)
+   In theory each HTM cell has one proximal dendrite segment and a couple
+   dozen distal dendrite segments.
+   + proximal segment receives feed-forward input (shared between the cells
+     in a column)
    + distal dendrite segments receive lateral input from nearby cells.
-     
-   The spatial pooler function (described below) operates on the shared proximal dendrite
-   segment, at the level of columns.
-   
-   The temporal pooler function operates on distal dendrite segments, at the level of
-   individual cells within columns.
+
+   The spatial pooler function (described below) operates on the shared
+   proximal dendrite segment, at the level of columns.
+
+   The temporal pooler function operates on distal dendrite segments, at
+   the level of individual cells within columns.
 
 ** Synapses
-   HTM synapses have binary weights. To model the forming and un-forming of synapses we
-   use two additional concepts.
-   
-   + “potential synapses”. This represents all the axons that pass close enough to a
-   dendrite segment that they could potentially form a synapse.
-   
-   + “permanence”. This is a scalar value assigned to each potential synapse, which 
-   represents a range ([0.0, 1.0]) of connectedness between an axon and a dendrite.
-   Learning involves incrementing and decrementing a synapse’s permanence.
-   If permanence is > threshold, synapse is connected (weight of “1”).
-   If permanence is < threshold, synapse is unconnected (weight of “0”).
+   HTM synapses have binary weights. To model the forming and un-forming of
+   synapses we use two additional concepts.
+
+   + “potential synapses”. This represents all the axons that pass close
+     enough to a dendrite segment that they could potentially form a
+     synapse.
+
+   + “permanence”. This is a scalar value assigned to each potential
+     synapse, which represents a range ([0.0, 1.0]) of connectedness
+     between an axon and a dendrite.  Learning involves incrementing and
+     decrementing a synapse’s permanence.  If permanence is > threshold,
+     synapse is connected (weight of “1”).  If permanence is < threshold,
+     synapse is unconnected (weight of “0”).
 
 
 * Overview
 ** Form a sparse distributed representation of the input
-   Each column in a region is connected to a unique subset of the input bits. As a result,
-   different input patterns result in different levels of activation of the columns. The
-   columns with the strongest activation inhibit, or deactivate, the columns with weaker
-   activation. (The inhibition occurs within a dynamical radius.)
+   Each column in a region is connected to a unique subset of the input
+   bits.  As a result, different input patterns result in different levels
+   of activation of the columns.  The columns with the strongest activation
+   inhibit, or deactivate, the columns with weaker activation.  (The
+   inhibition occurs within a dynamical radius.)
 
-   The sparse representation of the input is encoded by which columns are active and which
-   are inactive after inhibition. The inhibition function is defined to achieve a
-   relatively constant percentage of columns to be active
+   The sparse representation of the input is encoded by which columns are
+   active and which are inactive after inhibition.  The inhibition function
+   is defined to achieve a relatively constant percentage of columns to be
+   active.
 
-   Imagine now that the input pattern changes. If only a few input bits change, some
-   columns will receive a few more or a few less inputs in the "on" state, but the set of
-   active columns will not likely change much. Thus similar input patterns will map to a
-   relatively stable set of active columns. How stable the encoding is depends greatly on
-   what inputs each column is connected to. These connections are learned via a method
-   described later.
+   Imagine now that the input pattern changes.  If only a few input bits
+   change, some columns will receive a few more or a few less inputs in the
+   "on" state, but the set of active columns will not likely change much.
+   Thus similar input patterns will map to a relatively stable set of
+   active columns.  How stable the encoding is depends greatly on what
+   inputs each column is connected to.  These connections are learned via a
+   method described later.
 
-   All these steps (learning the connections to each column from a subset of the inputs,
-   determining the level of input to each column, and using inhibition to select a sparse
-   set of active columns) are referred to as the “Spatial Pooler”. The term means patterns
-   that are “spatially” similar (meaning they share a large number of active bits) are
-   “pooled” (meaning they are grouped together in a common representation).
+   All these steps (learning the connections to each column from a subset
+   of the inputs, determining the level of input to each column, and using
+   inhibition to select a sparse set of active columns) are referred to as
+   the “Spatial Pooler”.  The term means patterns that are “spatially”
+   similar (meaning they share a large number of active bits) are “pooled”
+   (meaning they are grouped together in a common representation).
 
 ** Form a representation of the input in the context of previous inputs
-   A region then converts the columnar representation of the input into a new one that
-   includes context from the past. The new representation is formed by activating a subset
-   of the cells within each column, typically only one cell per column.
-   
-   Each column in an HTM region consists of multiple cells. All cells in a column get the
-   same feed-forward input. Each cell in a column can be active or not active. By
-   selecting different active cells in each active column, we can represent the exact same
-   input differently in different contexts.(Say every column has 4 cells and the
-   representation of every input consists of 100 active columns. If only one cell per
-   column is active at a time, we have 4^100 ways of representing the same input.)
-   
-   The general rule used by an HTM region is the following. When a column becomes active,
-   it looks at all the cells in the column. If one or more cells in the column are already
-   in the predictive state, only those cells become active. If no cells in the column are
-   in the predictive state, then all the cells become active. (Signaling unexpected
-   input.)
+   A region then converts the columnar representation of the input into a
+   new one that includes context from the past.  The new representation is
+   formed by activating a subset of the cells within each column, typically
+   only one cell per column.
+
+   Each column in an HTM region consists of multiple cells.  All cells in a
+   column get the same feed-forward input.  Each cell in a column can be
+   active or not active.  By selecting different active cells in each
+   active column, we can represent the exact same input differently in
+   different contexts.  (Say every column has 4 cells and the
+   representation of every input consists of 100 active columns.  If only
+   one cell per column is active at a time, we have 4^100 ways of
+   representing the same input.)
+
+   The general rule used by an HTM region is the following.  When a column
+   becomes active, it looks at all the cells in the column.  If one or more
+   cells in the column are already in the predictive state, only those
+   cells become active.  If no cells in the column are in the predictive
+   state, then all the cells become active.  (Signaling unexpected input.)
 
 ** Form a prediction based on the input in the context of previous inputs
-   The final step is to make a prediction of what is likely to happen next.  The
-   prediction is based on the representation formed in step 2), which includes context
-   from all previous inputs.
-   
-   When a region makes a prediction it activates (into the predictive state) all the cells
-   that will likely become active due to future feed-forward input. Because
-   representations in a region are sparse, multiple predictions can be made at the same
-   time. For example if 2% of the columns are active due to an input, you could expect
-   that ten different predictions could be made resulting in 20% of the columns having a
-   predicted cell.
+   The final step is to make a prediction of what is likely to happen next.
+   The prediction is based on the representation formed in step 2), which
+   includes context from all previous inputs.
 
-   How does a region make a prediction? When input patterns change over time, different
-   sets of columns and cells become active in sequence. When a cell becomes active, it
-   forms connections to a subset of the cells nearby that were active immediately
-   prior. These connections can be formed quickly or slowly depending on the learning rate
-   required by the application. Later, all a cell needs to do is to look at these
-   connections for coincident activity. If the connections become active, the cell can
-   expect that it might become active shortly and enters a predictive state.
-   
-   In summary, when a new input arrives, it leads to a sparse set of active columns.  One
-   or more of the cells in each column become active, these in turn cause other cells to
-   enter a predictive state through learned connections between cells in the region. The
-   cells activated by connections within the region constitute a prediction of what is
-   likely to happen next. When the next feed-forward input arrives, it selects another
-   sparse set of active columns. If a newly active column is unexpected, meaning it was
-   not predicted by any cells, it will activate all the cells in the columns.  If a newly
-   active column has one or more predicted cells, only those cells will become active. The
-   output of a region is the activity of all cells in the region, including the cells
-   active because of feed-forward input and the cells active in the predictive state.
-   
-   As mentioned earlier, predictions are not just for the next time step. Predictions in
-   an HTM region can be for several time steps into the future. Using melodies as example,
-   an HTM region would not just predict the next note in a melody, but might predict the
-   next four notes. This leads to a desirable property. The output of a region (the union
-   of all the active and predicted cells in a region) changes more slowly than the input.
+   When a region makes a prediction it activates (into the predictive
+   state) all the cells that will likely become active due to future
+   feed-forward input.  Because representations in a region are sparse,
+   multiple predictions can be made at the same time.  For example if 2% of
+   the columns are active due to an input, you could expect that ten
+   different predictions could be made resulting in 20% of the columns
+   having a predictive cell.
 
-   [Example.] Because the output of an HTM region is a vector representing the activity of
-   all the region’s cells, the output in this example is five times more stable than the
-   input. In a hierarchical arrangement of regions, we will see an increase in temporal
-   stability as you ascend the hierarchy.
+   How does a region make a prediction?  When input patterns change over
+   time, different sets of columns and cells become active in sequence.
+   When a cell becomes active, it forms connections to a subset of the
+   cells nearby that were active immediately prior.  These connections can
+   be formed quickly or slowly depending on the learning rate required by
+   the application.  Later, all a cell needs to do is to look at these
+   connections for coincident activity.  If the connections become active,
+   the cell can expect that it might become active shortly and enters a
+   predictive state.
 
-   We use the term “temporal pooler” to describe the two steps of adding context to the
-   representation and predicting. By creating slowly changing outputs for sequences of
-   patterns, we are in essence “pooling” together different patterns that follow each
-   other in time.
+   In summary, when a new input arrives, it leads to a sparse set of active
+   columns.  One or more of the cells in each column become active, these
+   in turn cause other cells to enter a predictive state through learned
+   connections between cells in the region.  The cells activated by
+   connections within the region constitute a prediction of what is likely
+   to happen next.  When the next feed-forward input arrives, it selects
+   another sparse set of active columns.  If a newly active column is
+   unexpected, meaning it was not predicted by any cells, it will activate
+   all the cells in the columns.  If a newly active column has one or more
+   predicted cells, only those cells will become active.  The output of a
+   region is the activity of all cells in the region, including the cells
+   active because of feed-forward input and the cells active in the
+   predictive state.
+
+   As mentioned earlier, predictions are not just for the next time step.
+   Predictions in an HTM region can be for several time steps into the
+   future.  Using melodies as example, an HTM region would not just predict
+   the next note in a melody, but might predict the next four notes.  This
+   leads to a desirable property.  The output of a region (the union of all
+   the active and predicted cells in a region) changes more slowly than the
+   input.
+
+   [Example from before] Because the output of an HTM region is a vector
+   representing the activity of all the region’s cells, the output in this
+   example is five times more stable than the input.  In a hierarchical
+   arrangement of regions, we will see an increase in temporal stability as
+   you ascend the hierarchy.
+
+   We use the term “temporal pooler” to describe the two steps of adding
+   context to the representation and predicting.  By creating slowly
+   changing outputs for sequences of patterns, we are in essence “pooling”
+   together different patterns that follow each other in time.
 
 
 * Spatial/Temporal pooler: shared concepts
-  Learning in both the spatial and temporal pooler involves establishing connections
-  between cells. The temporal pooler learns connections between cells in the same
-  region. The spatial pooler learns feed-forward connections between input bits and
-  columns.
+  Learning in both the spatial and temporal pooler involves establishing
+  connections between cells.  The temporal pooler learns connections
+  between cells in the same region.  The spatial pooler learns feed-forward
+  connections between input bits and columns.
 
 ** Binary weights
    HTM synapses have only a 0 or 1 effect.
 
 ** Permanence
-   Synapses are forming and unforming constantly during learning. As mentioned before, we
-   assign a scalar value to each synapse (0.0 to 1.0) to indicate how permanent the
-   connection is. When a connection is reinforced, its permanence is increased. Otherwise,
-   the permanence is decreased. When the permanence is above a threshold, the synapse is
-   considered active. If the permanence is below the threshold, the synapse will have no
-   effect.
+   Synapses are forming and unforming constantly during learning.  As
+   mentioned before, we assign a scalar value to each synapse (0.0 to 1.0)
+   to indicate how permanent the connection is.  When a connection is
+   reinforced, its permanence is increased.  Otherwise, the permanence is
+   decreased.  When the permanence is above a threshold, the synapse is
+   considered active.  If the permanence is below the threshold, the
+   synapse will have no effect.
 
 ** Dendrite segments
-   Synapses connect to dendrite segments. There are two types of segments:
-   + A proximal segment forms synapses with feed-forward inputs. The active synapses on
-     this type of segment are linearly summed to determine the feedforward activation of a
-     column.
-   + A distal segment forms synapses with cells within the region. Every cell has several
-     distal dendrite segments. If the sum of the active synapses on a distal segment
-     exceeds a threshold, then the associated cell becomes active in a predicted
-     state. Since there are multiple distal dendrite segments per cell, a cell’s
-     predictive state is the logical OR operation of several constituent threshold
-     detectors.
+   Synapses connect to dendrite segments.  There are two types of segments:
+
+   + A proximal segment forms synapses with feed-forward inputs.  The
+     active synapses on this type of segment are linearly summed to
+     determine the feedforward activation of a column.
+
+   + A distal segment forms synapses with cells within the region.  Every
+     cell has several distal dendrite segments.  If the sum of the active
+     synapses on a distal segment exceeds a threshold, then the associated
+     cell becomes active in a predicted state.  Since there are multiple
+     distal dendrite segments per cell, a cell’s predictive state is the
+     logical OR operation of several constituent threshold detectors.
 
 ** Potential Synapses
-   As mentioned earlier, each dendrite segment has a list of potential synapses. All the
-   potential synapses are given a permanence value and may become functional synapses if
-   their permanence values exceed a threshold.
-   
-** Learning
-   Learning involves incrementing or decrementing the permanence values of potential
-   synapses on a dendrite segment. The rules used for making synapses more or less
-   permanent are similar to “Hebbian” learning rules. For example, if a post-synaptic cell
-   is active due to a dendrite segment receiving input above its threshold, then the
-   permanence values of the synapses on that segment are modified. Synapses that are
-   active, and therefore contributed to the cell being active, have their permanence
-   increased. Synapses that are inactive, and therefore did not contribute, have their
-   permanence decreased. The exact conditions under which synapse permanence values are
-   updated differ in the spatial and temporal pooler.
+   Each dendrite segment has a list of potential synapses.  All the
+   potential synapses are given a permanence value and may become
+   functional synapses if their permanence values exceed a threshold.
 
-   
+** Learning
+   Learning involves incrementing or decrementing the permanence values of
+   potential synapses on a dendrite segment.  The rules used for making
+   synapses more or less permanent are similar to “Hebbian” learning rules.
+   For example, if a post-synaptic cell is active due to a dendrite segment
+   receiving input above its threshold, then the permanence values of the
+   synapses on that segment are modified.  Synapses that are active, and
+   therefore contributed to the cell being active, have their permanence
+   increased.  Synapses that are inactive, and therefore did not
+   contribute, have their permanence decreased.  The exact conditions under
+   which synapse permanence values are updated differ in the spatial and
+   temporal pooler.
+
+
 * Spatial pooler concepts
-  The most fundamental function of the spatial pooler is to convert a region’s input into
-  a sparse pattern. The mechanism used to learn sequences and make predictions requires
-  starting with sparse distributed patterns.
-  
-  There are several overlapping goals for the spatial pooler, which determine how the
-  spatial pooler operates and learns:
-  
+  The most fundamental function of the spatial pooler is to convert a
+  region’s input into a sparse pattern.  The mechanism used to learn
+  sequences and make predictions requires starting with sparse distributed
+  patterns.
+
+  There are several overlapping goals for the spatial pooler, which
+  determine how the spatial pooler operates and learns.
+
 ** Use all columns
-   One objective is to make sure all the columns learn to represent something useful
-   regardless of how many columns you have. We don’t want columns that are never
-   active. To prevent this from happening, we keep track of how often a column is active
-   relative to its neighbors. If the relative activity of a column is too low, it boosts
-   its input activity level until it starts to be part of the winning set of columns. In
-   essence, all columns are competing with their neighbors to represent input patterns.
+   One objective is to make sure all the columns learn to represent
+   something useful regardless of how many columns you have.  We don’t want
+   columns that are never active.  To prevent this from happening, we keep
+   track of how often a column is active relative to its neighbors.  If the
+   relative activity of a column is too low, we boost its input activity
+   level until it starts to be part of the winning set of columns.  In
+   essence, all columns are competing with their neighbors to represent
+   input patterns.
 
 ** Maintain desired density
-   A region needs to form a sparse representation of its inputs. Columns with the most
-   input inhibit their neighbors. There is a radius of inhibition which is proportional to
-   the size of the receptive fields of the columns (and therefore can range from small to
-   the size of the entire region). Within the radius of inhibition, we allow only a
-   percentage of the columns with the most active input to be “winners”. The remainders of
-   the columns are disabled. (A “radius” of inhibition implies a 2D arrangement of
-   columns, but the concept can be adapted to other topologies.)
+   A region needs to form a sparse representation of its inputs.  Columns
+   with the most input inhibit their neighbors.  There is a radius of
+   inhibition which is proportional to the size of the receptive fields of
+   the columns (and therefore can range from small to the size of the
+   entire region).  Within the radius of inhibition, we allow only a
+   percentage of the columns with the most active input to be “winners”.
+   The remainders of the columns are disabled.  (A “radius” of inhibition
+   implies a 2D arrangement of columns, but the concept can be adapted to
+   other topologies.)
 
 ** Avoid trivial patterns
-   We want all our columns to represent non-trivial patterns in the input. This goal
-   can be achieved by setting a minimum threshold of input for the column to be active.
-   For example, if we set the threshold to 50, it means that a column must have a least
-   50 active synapses on its dendrite segment to be active, guaranteeing a certain level
-   of complexity to the pattern it represents.
+   We want all our columns to represent non-trivial patterns in the input.
+   This goal can be achieved by setting a minimum threshold of input for
+   the column to be active.  For example, if we set the threshold to 50, it
+   means that a column must have a least 50 active synapses on its dendrite
+   segment to be active, guaranteeing a certain level of complexity to the
+   pattern it represents.
 
 ** Avoid extra connections
-   If we aren’t careful, a column could form a large number of valid synapses. It would
-   then respond strongly to many different unrelated input patterns. Different subsets of
-   the synapses would respond to different patterns. To avoid this problem, we decrement
-   the permanence value of any synapse that isn’t currently contributing to a winning
-   column. By making sure non-contributing synapses are sufficiently penalized, we
-   guarantee a column represents a limited number input patterns, sometimes only one.
+   If we aren’t careful, a column could form a large number of valid
+   synapses.  It would then respond strongly to many different unrelated
+   input patterns.  Different subsets of the synapses would respond to
+   different patterns.  To avoid this problem, we decrement the permanence
+   value of any synapse that isn’t currently contributing to a winning
+   column.  By making sure non-contributing synapses are sufficiently
+   penalized, we guarantee a column represents a limited number input
+   patterns, sometimes only one.
 
 ** Self adjusting receptive fields
-   We want our HTM regions to exhibit the flexibility that brains exhibit through
-   neuroplasticity. If we allocate x columns to a region, it should learn how to best use
-   that number of columns. If the input statistics change, the columns should change to
-   best represent the new reality.
+   We want our HTM regions to exhibit the flexibility that brains exhibit
+   through neuroplasticity.  If we allocate x columns to a region, it
+   should learn how to best use that number of columns.  If the input
+   statistics change, the columns should change to best represent the new
+   reality.
 
 ** Summary of goals
-   In short, the designer of an HTM should be able to allocate any resources to a region
-   and the region should do the best job it can of representing the input based on the
-   available columns and input statistics.
+   In short, the designer of an HTM should be able to allocate any
+   resources to a region and the region should do the best job it can of
+   representing the input based on the available columns and input
+   statistics.
 
-   The general rule is that with more columns in a region, each column will represent
-   larger and more detailed patterns in the input. Typically the columns also will be
-   active less often, yet we will maintain a relative constant sparsity level. No new
-   learning rules are required to achieve this highly desirable goal. By boosting inactive
-   columns, inhibiting neighboring columns to maintain constant sparsity, establishing
-   minimal thresholds for input, maintaining a large pool of potential synapses, and
-   adding and forgetting synapses based on their contribution, the ensemble of columns
-   will dynamically configure to achieve the desired effect.
+   The general rule is that with more columns in a region, each column will
+   represent larger and more detailed patterns in the input.  Typically the
+   columns also will be active less often, yet we will maintain a relative
+   constant sparsity level.  No new learning rules are required to achieve
+   this highly desirable goal. By boosting inactive columns, inhibiting
+   neighboring columns to maintain constant sparsity, establishing minimal
+   thresholds for input, maintaining a large pool of potential synapses,
+   and adding and forgetting synapses based on their contribution, the
+   ensemble of columns will dynamically configure to achieve the desired
+   effect.
 
-   
+
 * Spatial pooler details
-  1. Start with an input consisting of a fixed number of bits. These bits might represent
-     sensory data or they might come from another region lower in the hierarchy.
-  
-  2. Assign a fixed number of columns to the region receiving this input. Each column has
-     an associated dendrite segment. Each dendrite segment has a set of potential synapses
-     representing a subset of the input bits. Each potential synapse has a permanence
-     value. Based on their permanence values, some of the potential synapses will be
-     valid.
-  
-  3. For any given input, determine how many valid synapses on each column are connected
-     to active input bits.
-  
-  4. The number of active synapses is multiplied by a “boosting” factor which is
-     dynamically determined by how often a column is active relative to its neighbors.
-  
-  5. The columns with the highest activations after boosting disable all but a fixed
-     percentage of the columns within an inhibition radius. The inhibition radius is
-     itself dynamically determined by the spread (or “fan-out”) of input bits. There is
-     now a sparse set of active columns.
-  
-  6. For each of the active columns, we adjust the permanence values of all the potential
-     synapses. The permanence values of synapses aligned with active input bits are
-     increased. The permanence values of synapses aligned with inactive input bits are
-     decreased. The changes made to permanence values may change some synapses from being
-     valid to not valid, and vice-versa.
+  1. Start with an input consisting of a fixed number of bits.  These bits
+     might represent sensory data or they might come from another region
+     lower in the hierarchy.
+
+  2. Assign a fixed number of columns to the region receiving this input.
+     Each column has an associated dendrite segment.  Each dendrite segment
+     has a set of potential synapses representing a subset of the input
+     bits.  Each potential synapse has a permanence value.  Based on their
+     permanence values, some of the potential synapses will be valid.
+
+  3. For any given input, determine how many valid synapses on each column
+     are connected to active input bits.
+
+  4. The number of active synapses is multiplied by a “boosting” factor
+     which is dynamically determined by how often a column is active
+     relative to its neighbors.
+
+  5. The columns with the highest activations after boosting disable all
+     but a fixed percentage of the columns within an inhibition radius.
+     The inhibition radius is itself dynamically determined by the spread
+     (or “fan-out”) of input bits.  There is now a sparse set of active
+     columns.
+
+  6. For each of the active columns, we adjust the permanence values of all
+     the potential synapses.  The permanence values of synapses aligned
+     with active input bits are increased.  The permanence values of
+     synapses aligned with inactive input bits are decreased.  The changes
+     made to permanence values may change some synapses from being valid to
+     not valid, and vice-versa.
 
 
 * Temporal pooler concepts
-  Recall that the temporal pooler learns sequences and makes predictions. The basic method
-  is that when a cell becomes active, it forms connections to other cells that were active
-  just prior. Cells can then predict when they will become active by looking at their
-  connections. If all the cells do this, collectively they can store and recall sequences,
-  and they can predict what is likely to happen next. There is no central storage for a
-  sequence of patterns; instead, memory is distributed among the individual cells. Because
-  the memory is distributed, the system is robust to noise and error. Individual cells can
-  fail, usually with little or no discernible effect.
-  
-  It is worth noting a few important properties of sparse distributed representations that
-  the temporal pooler exploits.
-  
-  Assume we have a hypothetical region that always forms representations by using 200
-  active cells out of a total of 10,000 cells. How can we remember and recognize a
-  particular pattern of 200 active cells? We make a list of only 20 of the 200 active
-  cells and ignored the others. You might think that remembering only 20 cells would cause
-  many errors, but this isn’t the case. Because the patterns are large and sparse,
-  remembering 20 active cells is almost as good as remembering all 200. The chance for
-  error in a practical system is exceedingly small and we have reduced our memory needs
-  considerably.
-  
-  The cells in an HTM region take advantage of this property. Each of a cell’s dendrite
-  segments has a set of connections to other cells in the region. A dendrite segment forms
-  these connections as a means of recognizing the state of the network at some point in
-  time. There may be hundreds or thousands of active cells nearby but the dendrite segment
-  only has to connect to 15 or 20 of them. When the dendrite segment sees 15 of those
-  active cells, it can be fairly certain the larger pattern is occurring. This technique
-  is called “sub-sampling” and is used throughout the HTM algorithms.
-  
-  Every cell participates in many different distributed patterns and in many different
-  sequences. A particular cell might be part of dozens or hundreds of temporal
-  transitions. Therefore every cell has several dendrite segments, not just one. Ideally a
-  cell would have one dendrite segment for each pattern of activity it wants to
-  recognize. Practically though, a dendrite segment can learn connections for several
-  completely different patterns and still work well. For example, one segment might learn
-  20 connections for each of 4 different patterns, for a total of 80 connections. We then
-  set a threshold so the dendrite segment becomes active when any 15 of its connections
-  are active. This introduces the possibility for error. It is possible, by chance, that
-  the dendrite reaches its threshold of 15 active connections by mixing parts of different
-  patterns. However, this kind of error is very unlikely, again due to the sparseness of
-  the representations. Now we can see how a cell with one or two dozen dendrite segments
-  and a few thousand synapses can recognize hundreds of separate states of cell activity.
+  Recall that the temporal pooler learns sequences and makes
+  predictions. The basic method is that when a cell becomes active, it
+  forms connections to other cells that were active just prior. Cells can
+  then predict when they will become active by looking at their
+  connections. If all the cells do this, collectively they can store and
+  recall sequences, and they can predict what is likely to happen
+  next. There is no central storage for a sequence of patterns; instead,
+  memory is distributed among the individual cells. Because the memory is
+  distributed, the system is robust to noise and error. Individual cells
+  can fail, usually with little or no discernible effect.
 
-  
+  It is worth noting a few important properties of sparse distributed
+  representations that the temporal pooler exploits.
+
+  Assume we have a hypothetical region that always forms representations by
+  using 200 active cells out of a total of 10,000 cells. How can we
+  remember and recognize a particular pattern of 200 active cells? We make
+  a list of only 20 of the 200 active cells and ignored the others. You
+  might think that remembering only 20 cells would cause many errors, but
+  this isn’t the case. Because the patterns are large and sparse,
+  remembering 20 active cells is almost as good as remembering all 200. The
+  chance for error in a practical system is exceedingly small and we have
+  reduced our memory needs considerably.
+
+  The cells in an HTM region take advantage of this property. Each of a
+  cell’s dendrite segments has a set of connections to other cells in the
+  region. A dendrite segment forms these connections as a means of
+  recognizing the state of the network at some point in time. There may be
+  hundreds or thousands of active cells nearby but the dendrite segment
+  only has to connect to 15 or 20 of them. When the dendrite segment sees
+  15 of those active cells, it can be fairly certain the larger pattern is
+  occurring. This technique is called “sub-sampling” and is used throughout
+  the HTM algorithms.
+
+  Every cell participates in many different distributed patterns and in
+  many different sequences. A particular cell might be part of dozens or
+  hundreds of temporal transitions. Therefore every cell has several
+  dendrite segments, not just one. Ideally a cell would have one dendrite
+  segment for each pattern of activity it wants to recognize. Practically
+  though, a dendrite segment can learn connections for several completely
+  different patterns and still work well. For example, one segment might
+  learn 20 connections for each of 4 different patterns, for a total of 80
+  connections. We then set a threshold so the dendrite segment becomes
+  active when any 15 of its connections are active. This introduces the
+  possibility for error. It is possible, by chance, that the dendrite
+  reaches its threshold of 15 active connections by mixing parts of
+  different patterns. However, this kind of error is very unlikely, again
+  due to the sparseness of the representations. Now we can see how a cell
+  with one or two dozen dendrite segments and a few thousand synapses can
+  recognize hundreds of separate states of cell activity.
+
+
 * Temporal pooler details
-  Here we enumerate the steps performed by the temporal pooler. We start where the spatial
-  pooler left off, with a set of active columns representing the feed-forward input.
-  
-  1. For each active column, check for cells in the column that are in a predictive state,
-     and activate them. If no cells are in a predictive state, activate all the cells in
-     the column. The resulting set of active cells is the representation of the input in
-     the context of prior input.
-  
-  2. For every dendrite segment (only distal?) on every cell in the region, count
-     how many established (active?) synapses are connected to active cells. If the number
-     exceeds a threshold, that dendrite segment is marked as active. Cells with active
-     dendrite segments are put in the predictive state unless they are already
-     active. Cells with no active dendrites and not active due to bottom-up input become
-     or remain inactive. The collection of cells now in the predictive state is the
+  Here we enumerate the steps performed by the temporal pooler. We start
+  where the spatial pooler left off, with a set of active columns
+  representing the feed-forward input.
+
+  1. For each active column, check for cells in the column that are in a
+     predictive state, and activate them. If no cells are in a predictive
+     state, activate all the cells in the column. The resulting set of
+     active cells is the representation of the input in the context of
+     prior input.
+
+  2. For every dendrite segment (only distal?) on every cell in the region,
+     count how many established (active?) synapses are connected to active
+     cells. If the number exceeds a threshold, that dendrite segment is
+     marked as active. Cells with active dendrite segments are put in the
+     predictive state unless they are already active. Cells with no active
+     dendrites and not active due to bottom-up input become or remain
+     inactive. The collection of cells now in the predictive state is the
      prediction of the region.
-  
-  3. When a dendrite segment becomes active, modify the permanence values of all the
-     synapses in that segment:
-     + increase the permanence of those synapses that are connected to active cells
-     + decrement the permanence of those synapses connected to inactive cells
-       (forcing to predict one single pattern).
-     These changes to synapse permanence are marked as temporary. This modifies the
-     synapses on segments that are already trained sufficiently to make the segment
-     active, and thus lead to a prediction.
-     
-     However, we always want to extend predictions further back in time if possible. Thus,
-     we pick a second dendrite segment on the same cell to train. For the second segment
-     we choose the one that best matches the state of the system in the previous time
-     step. For this segment, using the state of the system in the previous time step:
+
+  3. When a dendrite segment becomes active, modify the permanence values
+     of all the synapses in that segment:
+     + increase the permanence of those synapses that are connected to
+       active cells
+     + decrement the permanence of those synapses connected to inactive
+       cells (forcing to predict one single pattern).
+     These changes to synapse permanence are marked as temporary. This
+     modifies the synapses on segments that are already trained
+     sufficiently to make the segment active, and thus lead to a
+     prediction.
+
+     However, we always want to extend predictions further back in time if
+     possible. Thus, we pick a second dendrite segment on the same cell to
+     train. For the second segment we choose the one that best matches the
+     state of the system in the previous time step. For this segment, using
+     the state of the system in the previous time step:
      + increase the permanence of those synapses that are connected to active cells
      + decrement the permanence of those synapses connected to inactive cells.
      These changes to synapse permanence are marked as temporary.
-  
-  4. Whenever a cell switches from being inactive to active due to feed-forward input, we
-     traverse each potential synapse associated with the cell and remove any temporary
-     marks. Thus we update the permanence of synapses only if they correctly predicted the
-     feed-forward activation of the cell.
-  
-  5. When a cell switches from either active state to inactive, undo any permanence
-     changes marked as temporary for each potential synapse on this cell. We don’t want to
-     strengthen the permanence of synapses that incorrectly predicted the feedforward
-     activation of a cell.
-  
-  Note that only cells that are active due to feed-forward input propagate activity within
-  the region, otherwise predictions would lead to further predictions. But all the active
-  cells (feed-forward and predictive) form the output of a region and propagate to the
-  next region in the hierarchy.
 
-  
+  4. Whenever a cell switches from being inactive to active due to
+     feed-forward input, we traverse each potential synapse associated with
+     the cell and remove any temporary marks. Thus we update the permanence
+     of synapses only if they correctly predicted the feed-forward
+     activation of the cell.
+
+  5. When a cell switches from either active state to inactive, undo any
+     permanence changes marked as temporary for each potential synapse on
+     this cell. We don’t want to strengthen the permanence of synapses that
+     incorrectly predicted the feedforward activation of a cell.
+
+  Note that only cells that are active due to feed-forward input propagate
+  activity within the region, otherwise predictions would lead to further
+  predictions. But all the active cells (feed-forward and predictive) form
+  the output of a region and propagate to the next region in the hierarchy.
+
+
 * Spatial pooler implementation
-  The input to this code is an array of bottom-up binary inputs from sensory data or the
-  previous level. The output is activeColumns(t) - the list of columns that win due to the
-  bottom-up input at time t. This list is then sent as input to the temporal pooler (still
-  acting in the same time step).
-  
+  The input to this code is an array of bottom-up binary inputs from
+  sensory data or the previous level. The output is activeColumns(t) - the
+  list of columns that win due to the bottom-up input at time t. This list
+  is then sent as input to the temporal pooler (still acting in the same
+  time step).
+
   The code is split into three distinct phases that occur in sequence:
-  
-  0. Initialization.  Prior to receiving any inputs, the region is initialized by
-     computing a list of initial potential synapses for each column. This consists of a
-     random set of inputs selected from the input space. Each input is represented by a
-     synapse and assigned a random permanence value. The random permanence values are
-     chosen with two criteria. First, the values are chosen to be in a small range around
-     connectedPerm (the minimum permanence value at which a synapse is considered
-     "connected"). This enables potential synapses to become connected (or disconnected)
-     after a small number of training iterations. Second, each column has a natural center
-     over the input region, and the permanence values have a bias towards this center
+
+  0. Initialization.  Prior to receiving any inputs, the region is
+     initialized by computing a list of initial potential synapses for each
+     column. This consists of a random set of inputs selected from the
+     input space. Each input is represented by a synapse and assigned a
+     random permanence value. The random permanence values are chosen with
+     two criteria. First, the values are chosen to be in a small range
+     around connectedPerm (the minimum permanence value at which a synapse
+     is considered "connected"). This enables potential synapses to become
+     connected (or disconnected) after a small number of training
+     iterations. Second, each column has a natural center over the input
+     region, and the permanence values have a bias towards this center
      (they have higher values near the center).
-     
-  1. Compute the overlap with the current input for each column. Given an input vector,
-     the first phase calculates the overlap of each column with that vector, which is
-     simply the number of connected synapses with active inputs, multiplied by its
-     boost. If this value is below minOverlap, we set the overlap score to zero.
 
-  2. Compute the winning columns after inhibition. The second phase calculates which
-     columns remain as winners (active) after the inhibition step. desiredLocalActivity is
-     a parameter that controls the number of columns that end up winning. For example, if
-     desiredLocalActivity is 10, a column will be a winner if its overlap score is greater
-     than the score of the 10'th highest column within its inhibition radius.
+  1. Compute the overlap with the current input for each column. Given an
+     input vector, the first phase calculates the overlap of each column
+     with that vector, which is simply the number of connected synapses
+     with active inputs, multiplied by its boost. If this value is below
+     minOverlap, we set the overlap score to zero.
 
-  3. Update synapse permanence and internal variables. The third phase performs learning;
-     it updates the permanence values of all synapses as necessary, as well as the boosta
-     and inhibition radius. For winning columns, if a synapse is active, its permanence
-     value is incremented, otherwise it is decremented. There are two separate boosting
-     mechanisms in place to help a column learn connections. If a column does not win
-     often enough (as measured by activeDutyCycle), its overall boost value is increased.
-     Alternatively, if a column's connected synapses do not overlap well with any inputs
-     often enough (as measured by overlapDutyCycle), its permanence values are
-     boosted. Note: once learning is turned off, boost(c) is frozen. Finally, at the end
-     of Phase 3 the inhibition radius is recomputed.
-   
-  Although spatial pooler learning is inherently online, you can turn off learning by
-  simply skipping Phase 3.
+  2. Compute the winning columns after inhibition. The second phase
+     calculates which columns remain as winners (active) after the
+     inhibition step. desiredLocalActivity is a parameter that controls the
+     number of columns that end up winning. For example, if
+     desiredLocalActivity is 10, a column will be a winner if its overlap
+     score is greater than the score of the 10'th highest column within its
+     inhibition radius.
 
-  
+  3. Update synapse permanence and internal variables. The third phase
+     performs learning; it updates the permanence values of all synapses as
+     necessary, as well as the boosta and inhibition radius. For winning
+     columns, if a synapse is active, its permanence value is incremented,
+     otherwise it is decremented. There are two separate boosting
+     mechanisms in place to help a column learn connections. If a column
+     does not win often enough (as measured by activeDutyCycle), its
+     overall boost value is increased.  Alternatively, if a column's
+     connected synapses do not overlap well with any inputs often enough
+     (as measured by overlapDutyCycle), its permanence values are
+     boosted. Note: once learning is turned off, boost(c) is
+     frozen. Finally, at the end of Phase 3 the inhibition radius is
+     recomputed.
+
+  Although spatial pooler learning is inherently online, you can turn off
+  learning by simply skipping Phase 3.
+
+
 * Temporal Pooling Implementation
-  The input to this code is activeColumns(t), as computed by the spatial pooler. The code
-  computes the active and predictive state for each cell at the current timestep, t. The
-  boolean OR of the active and predictive states for each cell forms the output of the
-  temporal pooler for the next level.
+  The input to this code is activeColumns(t), as computed by the spatial
+  pooler. The code computes the active and predictive state for each cell
+  at the current timestep, t. The boolean OR of the active and predictive
+  states for each cell forms the output of the temporal pooler for the next
+  level.
 
-  1. Compute the active state, activeState(t), for each cell in a winning column. For those
-     columns, the code further selects one cell per column as the learning cell
-     (learnState). The logic is as follows: if the bottom-up input was predicted by any cell
-     (i.e. its predictiveState output was 1 due to a sequence segment), then those cells
-     become active. If that segment became active from cells chosen with learnState on, this
-     cell is selected as the learning cell. If the bottom-up input was not predicted, then
-     all cells in the column become active. In addition, the best matching cell is chosen as
-     the learning cell and a new segment is added to that cell.
-  
-  2. Compute the predicted state, predictiveState(t), for each cell. A cell will turn to
-     predictive state if one of its segments becomes active, i.e. if enough of its lateral
-     inputs are currently active due to feed-forward input. In this case, the cell queues up
-     the following changes: a) reinforcement of the currently active segment, and b)
-     reinforcement of a segment that could have predicted this activation, i.e. a segment
-     that has a (potentially weak) match to activity during the previous time step.
-  
-  3. Update synapses (carries out learning). Segment updates that have been queued up are
-     actually implemented once we get feedforward input and if the cell is chosen as a
-     learning cell. Otherwise, if the cell ever stops predicting for any reason, we
-     negatively reinforce the segments.
+  1. Compute the active state, activeState(t), for each cell in a winning
+     column. For those columns, the code further selects one cell per
+     column as the learning cell (learnState). The logic is as follows: if
+     the bottom-up input was predicted by any cell (i.e. its
+     predictiveState output was 1 due to a sequence segment), then those
+     cells become active. If that segment became active from cells chosen
+     with learnStatea on, this cell is selected as the learning cell. If
+     the bottom-up input was not predicted, then all cells in the column
+     become active. In addition, the best matching cell is chosen as the
+     learning cell and a new segment is added to that cell.
 
+  2. Compute the predicted state, predictiveState(t), for each cell. A cell
+     will turn to predictive state if one of its segments becomes active,
+     i.e. if enough of its lateral inputs are currently active due to
+     feed-forward input. In this case, the cell queues up the following
+     changes: a) reinforcement of the currently active segment, and b)
+     reinforcement of a segment that could have predicted this activation,
+     i.e. a segment that has a (potentially weak) match to activity during
+     the previous time step.
+
+  3. Update synapses (carries out learning). Segment updates that have been
+     queued up are actually implemented once we get feedforward input and
+     if the cell is chosen as a learning cell. Otherwise, if the cell ever
+     stops predicting for any reason, we negatively reinforce the segments.
